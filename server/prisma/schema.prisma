@@ -1,0 +1,109 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+datasource db {
+  provider = "mysql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum RoomStatus {
+  ACTIVE
+  MAINTENANCE
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model User {
+  id                 Int        @id @default(autoincrement())
+  email              String     @unique @db.VarChar(100)
+  namaLengkap        String     @map("nama_lengkap") @db.VarChar(100)
+  passwordHash       String     @map("password_hash") @db.VarChar(255)
+  noTelp             String?    @map("no_telp") @db.VarChar(15)
+  role               Role       @default(USER)
+  status             UserStatus @default(ACTIVE)
+  mustChangePassword Boolean    @default(true) @map("must_change_password")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  bookings         Booking[] @relation("UserBookings")
+  approvedBookings Booking[] @relation("ApprovedByAdmin")
+
+  @@map("users")
+}
+
+model Room {
+  id        Int        @id @default(autoincrement())
+  nama      String     @unique @db.VarChar(50)
+  kapasitas Int
+  deskripsi String?    @db.Text
+  status    RoomStatus @default(ACTIVE)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  bookings     Booking[]
+  deviceTokens DeviceToken[]
+
+  @@map("rooms")
+}
+
+model Booking {
+  id            Int           @id @default(autoincrement())
+  userId        Int           @map("user_id")
+  roomId        Int           @map("room_id")
+  tanggal       DateTime      @db.Date
+  jamMulai      String        @map("jam_mulai") @db.VarChar(5) // Format "HH:mm"
+  jamSelesai    String        @map("jam_selesai") @db.VarChar(5) // Format "HH:mm"
+  agenda        String        @db.VarChar(255)
+  pemateri      String?       @db.VarChar(100)
+  jumlahPeserta Int           @map("jumlah_peserta")
+  catatan       String?       @db.Text
+  status        BookingStatus @default(PENDING)
+  alasanReject  String?       @map("alasan_reject") @db.Text
+  approvedBy    Int?          @map("approved_by")
+  approvedAt    DateTime?     @map("approved_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  user  User  @relation("UserBookings", fields: [userId], references: [id])
+  room  Room  @relation(fields: [roomId], references: [id])
+  admin User? @relation("ApprovedByAdmin", fields: [approvedBy], references: [id])
+
+  @@map("bookings")
+}
+
+model DeviceToken {
+  id          Int       @id @default(autoincrement())
+  token       String    @unique @db.VarChar(20)
+  roomId      Int       @map("room_id")
+  label       String?   @db.VarChar(100)
+  isActive    Boolean   @default(true) @map("is_active")
+  lastIp      String?   @map("last_ip") @db.VarChar(50)
+  lastSeenAt  DateTime? @map("last_seen_at")
+  activatedAt DateTime? @map("activated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  room Room @relation(fields: [roomId], references: [id])
+
+  @@map("device_tokens")
+}

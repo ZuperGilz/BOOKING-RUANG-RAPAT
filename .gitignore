@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Environment Variables
+.env
+
+# Prisma generated (Jika generate-nya ada di root atau folder tertentu)
+generated/
+
+# Project Plans & Docs
+implementasi_plan.md
+implementation_plan.md
+panduan_penggunaan.md
+ui_plan.md
