@@ -64,7 +64,11 @@ const revokeDevice = async (req, res) => {
   const { id } = req.params;
   try {
     const connection = await mysql.createConnection(dbConfig);
-    await connection.execute('UPDATE device_tokens SET is_active = 0, updated_at = NOW() WHERE id = ?', [id]);
+    // query di bawah diubah dengan menghapus 'device_uuid = NULL' agar tidak error
+    await connection.execute(
+      'UPDATE device_tokens SET is_active = 0, activated_at = NULL, last_ip = NULL, updated_at = NOW() WHERE id = ?', 
+      [id]
+    );
     await connection.end();
     return res.json({ message: 'Device token berhasil dinonaktifkan' });
   } catch (error) {
@@ -104,7 +108,7 @@ const deleteDevice = async (req, res) => {
 // ==========================================
 
 const activateKiosk = async (req, res) => {
-  const { token } = req.body;
+  const { token, deviceUuid } = req.body; // Terima deviceUuid dari body registrasi frontend
   if (!token) return res.status(400).json({ message: 'Token diperlukan' });
 
   try {
@@ -125,21 +129,18 @@ const activateKiosk = async (req, res) => {
     const device = rows[0];
     const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
 
-    // Jika sudah pernah diaktivasi dan IP berbeda, blokir (Lock to IP)
-    if (device.activated_at && device.last_ip && device.last_ip !== clientIp) {
-      // Pengecualian: localhost IPv4 dan IPv6 bisa bervariasi (::1, 127.0.0.1) 
-      // Tapi untuk jaringan lokal ini cukup efektif
-      if (clientIp !== '::1' && clientIp !== '127.0.0.1' && device.last_ip !== '::1' && device.last_ip !== '127.0.0.1') {
-        await connection.end();
-        return res.status(401).json({ message: 'Token ini sudah digunakan di perangkat lain.' });
-      }
+    // 🔒 PENGUNCIAN KIOSK BARU
+    if (device.activated_at && device.device_uuid && device.device_uuid !== deviceUuid) {
+      await connection.end();
+      return res.status(403).json({ 
+        message: 'Akses Ditolak! Token ini telah terikat dan digunakan oleh perangkat tablet lain.' 
+      });
     }
 
-    // Jika ini pertama kali diaktifkan
     if (!device.activated_at) {
       await connection.execute(
-        'UPDATE device_tokens SET activated_at = NOW(), last_seen_at = NOW(), last_ip = ?, updated_at = NOW() WHERE id = ?',
-        [clientIp, device.id]
+        'UPDATE device_tokens SET activated_at = NOW(), last_seen_at = NOW(), last_ip = ?, device_uuid = ?, updated_at = NOW() WHERE id = ?',
+        [clientIp, deviceUuid || 'GENERIC_UUID', device.id]
       );
     } else {
       await connection.execute(
@@ -149,14 +150,12 @@ const activateKiosk = async (req, res) => {
     }
 
     await connection.end();
-
     return res.json({
       message: 'Aktivasi berhasil',
       roomId: device.room_id,
       roomName: device.roomName,
       kapasitas: device.kapasitas
     });
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Terjadi kesalahan saat aktivasi' });
@@ -165,7 +164,7 @@ const activateKiosk = async (req, res) => {
 
 const getKioskSchedule = async (req, res) => {
   const roomId = req.device.room_id;
-  const { tanggal } = req.query; // format YYYY-MM-DD
+  const { tanggal } = req.query; 
   
   if (!tanggal) {
     return res.status(400).json({ message: 'Parameter tanggal diperlukan' });
@@ -191,7 +190,7 @@ const getKioskSchedule = async (req, res) => {
 
 const getKioskUpcoming = async (req, res) => {
   const roomId = req.device.room_id;
-  const { tanggal } = req.query; // format YYYY-MM-DD (today)
+  const { tanggal } = req.query; 
 
   if (!tanggal) {
     return res.status(400).json({ message: 'Parameter tanggal diperlukan' });
@@ -199,7 +198,6 @@ const getKioskUpcoming = async (req, res) => {
 
   try {
     const connection = await mysql.createConnection(dbConfig);
-    // Ambil jadwal mulai besok ke depan, max 10 item
     const [rows] = await connection.execute(
       `SELECT b.id, b.tanggal, b.jam_mulai, b.jam_selesai, b.agenda, b.status, u.nama_lengkap as pemesan, b.jumlah_peserta
        FROM bookings b
@@ -226,11 +224,9 @@ const getRoomInfo = async (req, res) => {
 };
 
 const heartbeat = async (req, res) => {
-  // lastSeenAt dan lastIp sudah di-update di middleware
   return res.json({ message: 'ok' });
 };
 
-// Fungsi helper waktu
 const timeToMinutes = (timeStr) => {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
@@ -278,10 +274,42 @@ const getKioskRooms = async (req, res) => {
   }
 };
 
+const verifyKioskUser = async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email dan password wajib diisi.' });
+  }
+
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    const [users] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+    if (users.length === 0) {
+      await connection.end();
+      return res.status(401).json({ message: 'Email tidak ditemukan.' });
+    }
+    
+    const user = users[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      await connection.end();
+      return res.status(401).json({ message: 'Password salah.' });
+    }
+    if (user.status !== 'ACTIVE') {
+      await connection.end();
+      return res.status(403).json({ message: 'Akun Anda diblokir atau tidak aktif.' });
+    }
+    
+    await connection.end();
+    return res.json({ message: 'Verifikasi berhasil', user: { nama_lengkap: user.nama_lengkap } });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Gagal memverifikasi pengguna.' });
+  }
+};
+
 const createKioskBooking = async (req, res) => {
   let { roomId, tanggal, jamMulai, jamSelesai, agenda, pemateri, jumlahPeserta, email, password } = req.body;
   
-  // Jika roomId tidak dikirim, gunakan roomId bawaan Kiosk
   if (!roomId) roomId = req.device.room_id;
 
   if (!tanggal || !jamMulai || !jamSelesai || !agenda || !jumlahPeserta || !email || !password) {
@@ -291,7 +319,6 @@ const createKioskBooking = async (req, res) => {
   try {
     const connection = await mysql.createConnection(dbConfig);
 
-    // 1. Verifikasi Kredensial User
     const [users] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
       await connection.end();
@@ -311,7 +338,6 @@ const createKioskBooking = async (req, res) => {
     
     const userId = user.id;
 
-    // 2. Cek Ruangan
     const [rooms] = await connection.execute('SELECT * FROM rooms WHERE id = ?', [roomId]);
     if (rooms.length === 0) {
       await connection.end();
@@ -323,7 +349,6 @@ const createKioskBooking = async (req, res) => {
       return res.status(400).json({ message: `Jumlah peserta melebihi kapasitas ${room.nama} (Maks: ${room.kapasitas} orang).` });
     }
 
-    // 3. Validasi Waktu & Hari
     const startMin = timeToMinutes(jamMulai);
     const endMin = timeToMinutes(jamSelesai);
     const opStart = timeToMinutes('08:00');
@@ -348,7 +373,6 @@ const createKioskBooking = async (req, res) => {
       return res.status(400).json({ message: 'Tidak bisa memesan untuk tanggal yang sudah lewat.' });
     }
 
-    // 4. Pengecekan Bentrok
     const [existingBookings] = await connection.execute(
       `SELECT jam_mulai, jam_selesai FROM bookings 
        WHERE room_id = ? AND tanggal = ? AND status IN ('APPROVED', 'PENDING')`,
@@ -372,7 +396,6 @@ const createKioskBooking = async (req, res) => {
       }
     }
 
-    // 5. Insert Booking — status PENDING, menunggu persetujuan Admin
     await connection.execute(
       `INSERT INTO bookings (user_id, room_id, tanggal, jam_mulai, jam_selesai, agenda, pemateri, jumlah_peserta, catatan, status, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
@@ -380,7 +403,6 @@ const createKioskBooking = async (req, res) => {
     );
 
     await connection.end();
-    
     return res.status(201).json({ message: 'Pemesanan langsung dari Kiosk berhasil! ✅' });
 
   } catch (error) {
@@ -400,6 +422,7 @@ module.exports = {
   getKioskUpcoming,
   getRoomInfo,
   heartbeat,
+  verifyKioskUser,
   createKioskBooking,
   getKioskCalendar,
   getKioskRooms

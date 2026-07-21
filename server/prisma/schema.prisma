@@ -98,6 +98,8 @@ model DeviceToken {
   label       String?   @db.VarChar(100)
   isActive    Boolean   @default(true) @map("is_active")
   lastIp      String?   @map("last_ip") @db.VarChar(50)
+  deviceUuid  String?   @map("device_uuid") @db.VarChar(255)
+  
   lastSeenAt  DateTime? @map("last_seen_at")
   activatedAt DateTime? @map("activated_at")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -106,4 +108,30 @@ model DeviceToken {
   room Room @relation(fields: [roomId], references: [id])
 
   @@map("device_tokens")
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MediaSourceType {
+  UPLOAD
+  LINK
+}
+
+model KioskMedia {
+  id         Int             @id @default(autoincrement())
+  title      String          @db.VarChar(255)
+  caption    String?         @db.Text // Optional caption shown on screensaver
+  type       MediaType       @default(IMAGE)
+  sourceType MediaSourceType @default(UPLOAD) @map("source_type")
+  url        String          @db.Text
+  duration   Int             @default(5) // in seconds, mainly for images
+  order      Int             @default(0) // display order
+  isActive   Boolean         @default(true) @map("is_active")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  @@map("kiosk_media")
 }

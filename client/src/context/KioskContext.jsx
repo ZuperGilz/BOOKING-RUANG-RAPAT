@@ -24,9 +24,20 @@ export const KioskProvider = ({ children }) => {
 
   const activate = async (token) => {
     try {
-      const response = await api.post('/kiosk/activate', { token });
-      const { roomId, roomName, kapasitas } = response.data;
+      // 1. Ambil atau generate Device UUID unik untuk browser/tablet ini
+      let deviceUuid = localStorage.getItem('kiosk_device_uuid');
+      if (!deviceUuid) {
+        deviceUuid = 'UUID-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('kiosk_device_uuid', deviceUuid);
+      }
+
+      // 2. Kirim token DAN deviceUuid ke backend
+      const response = await api.post('/kiosk/activate', { 
+        token,
+        deviceUuid 
+      });
       
+      const { roomId, roomName, kapasitas } = response.data;
       const newRoomInfo = { roomId, roomName, kapasitas };
       
       localStorage.setItem('kiosk_token', token);
@@ -48,8 +59,6 @@ export const KioskProvider = ({ children }) => {
     setRoomInfo(null);
     setIsActivated(false);
   };
-
-  // kioskLogin & kioskLogout removed as kiosk no longer requires human login
 
   return (
     <KioskContext.Provider value={{ 

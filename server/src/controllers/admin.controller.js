@@ -212,6 +212,80 @@ const toggleRoomStatus = async (req, res) => {
   }
 };
 
+const createRoom = async (req, res) => {
+  const { nama, kapasitas, deskripsi } = req.body;
+  if (!nama || !kapasitas) {
+    return res.status(400).json({ message: 'Nama ruangan dan kapasitas wajib diisi.' });
+  }
+
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    // Check jika nama ruangan sudah ada
+    const [existing] = await connection.execute('SELECT id FROM rooms WHERE nama = ?', [nama]);
+    if (existing.length > 0) {
+      await connection.end();
+      return res.status(400).json({ message: 'Nama ruangan sudah digunakan.' });
+    }
+
+    await connection.execute(
+      'INSERT INTO rooms (nama, kapasitas, deskripsi, status, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
+      [nama, kapasitas, deskripsi || null, 'ACTIVE']
+    );
+    await connection.end();
+    return res.status(201).json({ message: 'Ruangan berhasil ditambahkan.' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Gagal menambahkan ruangan.' });
+  }
+};
+
+const updateRoom = async (req, res) => {
+  const { id } = req.params;
+  const { nama, kapasitas, deskripsi } = req.body;
+
+  if (!nama || !kapasitas) {
+    return res.status(400).json({ message: 'Nama ruangan dan kapasitas wajib diisi.' });
+  }
+
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    // Check nama ruangan unik selain yang sedang di-edit
+    const [existing] = await connection.execute('SELECT id FROM rooms WHERE nama = ? AND id != ?', [nama, id]);
+    if (existing.length > 0) {
+      await connection.end();
+      return res.status(400).json({ message: 'Nama ruangan sudah digunakan.' });
+    }
+
+    await connection.execute(
+      'UPDATE rooms SET nama = ?, kapasitas = ?, deskripsi = ?, updated_at = NOW() WHERE id = ?',
+      [nama, kapasitas, deskripsi || null, id]
+    );
+    await connection.end();
+    return res.json({ message: 'Data ruangan berhasil diperbarui.' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Gagal memperbarui data ruangan.' });
+  }
+};
+
+const deleteRoom = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    // Kita mencoba delete. Jika ada constraint foreign key dari bookings, akan melempar error
+    await connection.execute('DELETE FROM rooms WHERE id = ?', [id]);
+    await connection.end();
+    return res.json({ message: 'Ruangan berhasil dihapus.' });
+  } catch (error) {
+    console.error(error);
+    if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(400).json({ message: 'Ruangan tidak bisa dihapus karena sudah memiliki riwayat reservasi.' });
+    }
+    return res.status(500).json({ message: 'Gagal menghapus ruangan.' });
+  }
+};
+
 // Pastikan semua fungsi terdaftar di exports bawah ini!
 module.exports = {
   getPendingBookings,
@@ -224,5 +298,8 @@ module.exports = {
   resetUserPassword,
   updateUser, // <-- Terpasang dengan aman
   toggleRoomStatus,
-  getAllRooms
+  getAllRooms,
+  createRoom,
+  updateRoom,
+  deleteRoom
 };
