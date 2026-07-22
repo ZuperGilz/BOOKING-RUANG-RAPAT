@@ -99,7 +99,7 @@ export default function LandingPage() {
   useEffect(() => {
     const fetch = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://booking-ruang-rapat.vercel.app' : 'http://localhost:5000');
         const r = await axios.get(`${apiUrl}/api/bookings/public/schedule`);
         setSchedules(r.data);
       } catch (e) {
