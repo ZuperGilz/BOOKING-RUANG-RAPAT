@@ -1,3 +1,113 @@
+// =========================================================
+// [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
+// =========================================================
+const prisma = require('../config/prisma');
+const { comparePassword, hashPassword } = require('../utils/password');
+const { generateToken } = require('../utils/jwt');
+
+const login = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email dan password wajib diisi.' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Email atau password salah.' });
+    }
+
+    if (user.status === 'INACTIVE') {
+      return res.status(403).json({ message: 'Akun Anda telah dinonaktifkan oleh admin.' });
+    }
+
+    const isMatch = await comparePassword(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Email atau password salah.' });
+    }
+
+    // Pass object that matches the old structure for token generation if needed
+    // or just pass the prisma user object
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      nama_lengkap: user.namaLengkap,
+      role: user.role
+    });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        namaLengkap: user.namaLengkap,
+        noTelp: user.noTelp,
+        role: user.role,
+        mustChangePassword: user.mustChangePassword
+      }
+    });
+  } catch (error) {
+    console.error('Login Error:', error);
+    return res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+  }
+};
+
+const changePassword = async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const userId = req.user.id;
+
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ message: 'Password lama dan baru wajib diisi.' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+    }
+
+    const isMatch = await comparePassword(oldPassword, user.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Password lama yang Anda masukkan salah.' });
+    }
+
+    const newHash = await hashPassword(newPassword);
+    
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: newHash,
+        mustChangePassword: false
+      }
+    });
+
+    return res.json({ message: 'Password berhasil diperbarui.' });
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    return res.status(500).json({ message: 'Gagal memperbarui password.' });
+  }
+};
+
+const getMe = async (req, res) => {
+  return res.json({ user: req.user });
+};
+
+module.exports = { login, changePassword, getMe };
+
+
+/* =========================================================
+   [INACTIVE] VERSI LOKAL (RAW MYSQL)
+   Untuk kembali ke mode lokal, hapus blok komentar ini (/* ... * /)
+   lalu berikan komentar pada seluruh blok VERSI CLOUD di atas.
+   =========================================================
 const mysql = require('mysql2/promise');
 const { comparePassword, hashPassword } = require('../utils/password');
 const { generateToken } = require('../utils/jwt');
@@ -84,3 +194,4 @@ const getMe = async (req, res) => {
 };
 
 module.exports = { login, changePassword, getMe };
+========================================================= */

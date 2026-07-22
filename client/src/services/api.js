@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  // Gunakan VITE_API_URL jika di Vercel, fallback ke '/api' untuk proxy lokal
+  baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
 // Interceptor: Otomatis menyisipkan token JWT ke setiap request

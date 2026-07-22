@@ -325,6 +325,23 @@ Ketika pengunjung ingin memesan ruangan langsung dari tablet:
 
 ---
 
+
+### 💻 Cara Kembali ke Mode Lokal (MySQL)
+Jika sewaktu-waktu ingin kembali hosting di server fisik/lokal, **JANGAN HAPUS KODE CLOUD**. Cukup matikan (comment) kode cloud dan hidupkan kode lokal:
+
+1. **Ubah Koneksi Database**
+   - Buka `server/src/config/db.js`.
+   - *Comment* blok `[ACTIVE] PRISMA CLIENT INSTANCE`.
+   - *Uncomment* blok `[INACTIVE] KONFIGURASI MYSQL LOKAL`.
+2. **Ubah Controller & Middleware**
+   - Buka semua file di `server/src/controllers/` dan `server/src/middleware/`.
+   - *Comment* blok kode yang ditandai `VERSI CLOUD`.
+   - *Uncomment* blok kode yang ditandai `VERSI LOKAL (MySQL)`.
+3. **Ubah URL Frontend**
+   - Pastikan variabel lingkungan `.env` lokal tidak memiliki `VITE_API_URL`, sehingga sistem otomatis jatuh kembali (fallback) memanggil `http://localhost:5000/api` lewat proxy lokal.
+
+---
+
 ## Catatan Teknis
 
 | Komponen | Teknologi |

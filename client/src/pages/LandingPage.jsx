@@ -99,7 +99,8 @@ export default function LandingPage() {
   useEffect(() => {
     const fetch = async () => {
       try {
-        const r = await axios.get('http://localhost:5000/api/bookings/public/schedule');
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const r = await axios.get(`${apiUrl}/api/bookings/public/schedule`);
         setSchedules(r.data);
       } catch (e) {
         console.error("Gagal mengambil jadwal:", e);

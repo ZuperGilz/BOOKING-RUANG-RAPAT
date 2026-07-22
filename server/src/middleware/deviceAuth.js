@@ -1,3 +1,92 @@
+// =========================================================
+// [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
+// =========================================================
+const prisma = require('../config/prisma');
+
+const protectDevice = async (req, res, next) => {
+  let token = req.headers['x-device-token'];
+  let deviceUuid = req.headers['x-device-uuid']; // Membaca UUID unik dari tablet
+
+  if (!token) {
+    return res.status(401).json({ message: 'Akses ditolak, token device tidak ditemukan.' });
+  }
+
+  try {
+    const device = await prisma.deviceToken.findUnique({
+      where: { token },
+      include: {
+        room: {
+          select: { nama: true, kapasitas: true }
+        }
+      }
+    });
+
+    if (!device || !device.isActive) {
+      return res.status(401).json({ message: 'Token device tidak valid atau sudah dinonaktifkan.' });
+    }
+
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+
+    // 🔒 KUNCI MUTLAK: Jika device sudah aktif dan UUID yang mengirim request berbeda, TOLAK!
+    if (device.activatedAt && device.deviceUuid && device.deviceUuid !== deviceUuid) {
+      return res.status(403).json({ 
+        message: 'Akses Ditolak! Perangkat tidak dikenali. Token ini telah dikunci untuk tablet lain.' 
+      });
+    }
+
+    // Jika lolos atau registrasi pertama kali
+    if (!device.activatedAt) {
+      const finalUuid = deviceUuid || 'UNKNOWN_FRONTEND_UUID';
+      
+      const updatedDevice = await prisma.deviceToken.update({
+        where: { id: device.id },
+        data: {
+          activatedAt: new Date(),
+          lastSeenAt: new Date(),
+          lastIp: clientIp,
+          deviceUuid: finalUuid
+        },
+        include: {
+          room: { select: { nama: true, kapasitas: true } }
+        }
+      });
+      
+      req.device = {
+        ...updatedDevice,
+        roomName: updatedDevice.room.nama,
+        kapasitas: updatedDevice.room.kapasitas
+      };
+    } else {
+      await prisma.deviceToken.update({
+        where: { id: device.id },
+        data: {
+          lastSeenAt: new Date(),
+          lastIp: clientIp
+        }
+      });
+      
+      req.device = {
+        ...device,
+        roomName: device.room.nama,
+        kapasitas: device.room.kapasitas
+      };
+    }
+
+    next();
+  } catch (error) {
+    console.error("Device Auth Error:", error);
+    return res.status(500).json({ message: 'Terjadi kesalahan saat memvalidasi device token.' });
+  }
+};
+
+module.exports = { protectDevice };
+
+
+/* =========================================================
+   [INACTIVE] VERSI LOKAL (RAW MYSQL)
+   Untuk kembali ke mode lokal, hapus blok komentar ini (/* ... * /)
+   lalu berikan komentar pada seluruh blok VERSI CLOUD di atas.
+   =========================================================
 const mysql = require('mysql2/promise');
 const dbConfig = require('../config/db');
 
@@ -63,3 +152,4 @@ const protectDevice = async (req, res, next) => {
 };
 
 module.exports = { protectDevice };
+========================================================= */
