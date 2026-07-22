@@ -1,10 +1,38 @@
 // =========================================================
-// [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
+// [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL + HYBRID UPLOAD)
 // =========================================================
 const prisma = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 const ytdl = require('@distube/ytdl-core');
+const cloudinary = require('cloudinary').v2;
+
+// Konfigurasi Cloudinary jika env tersedia
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
+
+// Helper untuk mengekstrak public_id dari URL Cloudinary
+const getCloudinaryPublicId = (url) => {
+  if (!url || !url.includes('cloudinary.com')) return null;
+  try {
+    const parts = url.split('/');
+    const uploadIndex = parts.indexOf('upload');
+    if (uploadIndex === -1) return null;
+    
+    // Mengambil path setelah 'upload/v12345/'
+    const pathAfterUpload = parts.slice(uploadIndex + 2).join('/');
+    // Menghapus ekstensi file (.jpg, .png, .mp4, dll)
+    const publicIdWithFolder = pathAfterUpload.substring(0, pathAfterUpload.lastIndexOf('.'));
+    return publicIdWithFolder;
+  } catch (err) {
+    return null;
+  }
+};
 
 // Create new media (Upload or Link)
 const createMedia = async (req, res) => {
@@ -16,7 +44,8 @@ const createMedia = async (req, res) => {
       if (!req.file) {
         return res.status(400).json({ message: 'File is required for UPLOAD source type' });
       }
-      finalUrl = `/uploads/${req.file.filename}`;
+      // Mendukung Cloudinary (req.file.path) atau Lokal (req.file.filename)
+      finalUrl = req.file.path || `/uploads/${req.file.filename}`;
     } else if (sourceType === 'LINK') {
       if (!linkUrl) {
         return res.status(400).json({ message: 'URL is required for LINK source type' });
@@ -60,7 +89,6 @@ const getAllMedia = async (req, res) => {
       orderBy: { order: 'asc' }
     });
     
-    // Map to snake_case equivalent or same structure as before for backward compatibility
     const formatted = mediaList.map(r => ({
       id: r.id,
       title: r.title,
@@ -148,11 +176,23 @@ const deleteMedia = async (req, res) => {
       return res.status(404).json({ message: 'Media not found' });
     }
 
-    // Delete file if it's an upload
+    // Penanganan hapus file UPLOAD (Cloudinary vs Lokal)
     if (media.sourceType === 'UPLOAD' && media.url) {
-      const filePath = path.join(__dirname, '../../', media.url);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (media.url.startsWith('http://') || media.url.startsWith('https://')) {
+        // Hapus dari Cloudinary
+        const publicId = getCloudinaryPublicId(media.url);
+        if (publicId) {
+          const resourceType = media.type === 'VIDEO' ? 'video' : 'image';
+          await cloudinary.uploader.destroy(publicId, { resource_type: resourceType }).catch(err => {
+            console.error('Cloudinary destroy error:', err);
+          });
+        }
+      } else {
+        // Hapus dari disk lokal
+        const filePath = path.join(__dirname, '../../', media.url);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
     }
 
@@ -173,7 +213,6 @@ const streamYoutube = async (req, res) => {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const info = await ytdl.getInfo(url);
     
-    // Select video + audio format, preferably mp4
     const format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'videoandaudio' });
 
     res.header('Content-Type', 'video/mp4');
@@ -215,7 +254,7 @@ const createMedia = async (req, res) => {
       if (!req.file) {
         return res.status(400).json({ message: 'File is required for UPLOAD source type' });
       }
-      finalUrl = \`/uploads/\${req.file.filename}\`;
+      finalUrl = req.file.path || `/uploads/${req.file.filename}`;
     } else if (sourceType === 'LINK') {
       if (!linkUrl) {
         return res.status(400).json({ message: 'URL is required for LINK source type' });
@@ -235,8 +274,8 @@ const createMedia = async (req, res) => {
     const mediaCaption = caption || null;
 
     const [result] = await connection.execute(
-      \`INSERT INTO kiosk_media (title, caption, type, source_type, url, duration, \\\`order\\\`, is_active, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())\`,
+      `INSERT INTO kiosk_media (title, caption, type, source_type, url, duration, \`order\`, is_active, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [title, mediaCaption, mediaType, mediaSourceType, finalUrl, mediaDuration, mediaOrder, mediaIsActive]
     );
 
@@ -255,7 +294,6 @@ const getAllMedia = async (req, res) => {
     const [rows] = await connection.execute('SELECT * FROM kiosk_media ORDER BY `order` ASC');
     await connection.end();
     
-    // Map snake_case to camelCase
     const formatted = rows.map(r => ({
       id: r.id,
       title: r.title,
@@ -316,13 +354,13 @@ const updateMedia = async (req, res) => {
     if (caption !== undefined) { updates.push('caption = ?'); values.push(caption || null); }
     if (type !== undefined) { updates.push('type = ?'); values.push(type); }
     if (duration !== undefined) { updates.push('duration = ?'); values.push(parseInt(duration)); }
-    if (order !== undefined) { updates.push('\`order\` = ?'); values.push(parseInt(order)); }
+    if (order !== undefined) { updates.push('`order` = ?'); values.push(parseInt(order)); }
     if (isActive !== undefined) { updates.push('is_active = ?'); values.push(isActive === 'true' || isActive === true ? 1 : 0); }
 
     if (updates.length > 0) {
       updates.push('updated_at = NOW()');
       values.push(parseInt(id));
-      const query = \`UPDATE kiosk_media SET \${updates.join(', ')} WHERE id = ?\`;
+      const query = `UPDATE kiosk_media SET ${updates.join(', ')} WHERE id = ?`;
       
       const connection = await mysql.createConnection(dbConfig);
       await connection.execute(query, values);
@@ -349,11 +387,22 @@ const deleteMedia = async (req, res) => {
     
     const media = rows[0];
 
-    // Delete file if it's an upload
     if (media.source_type === 'UPLOAD' && media.url) {
-      const filePath = path.join(__dirname, '../../', media.url);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (media.url.startsWith('http://') || media.url.startsWith('https://')) {
+        // Hapus Cloudinary
+        const publicId = getCloudinaryPublicId(media.url);
+        if (publicId) {
+          const resourceType = media.type === 'VIDEO' ? 'video' : 'image';
+          await cloudinary.uploader.destroy(publicId, { resource_type: resourceType }).catch(err => {
+            console.error('Cloudinary destroy error:', err);
+          });
+        }
+      } else {
+        // Hapus file lokal
+        const filePath = path.join(__dirname, '../../', media.url);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
     }
 
@@ -363,28 +412,6 @@ const deleteMedia = async (req, res) => {
     res.json({ message: 'Media deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-const ytdl = require('@distube/ytdl-core');
-
-const streamYoutube = async (req, res) => {
-  try {
-    const videoId = req.query.v;
-    if (!videoId) return res.status(400).send('Video ID is required');
-
-    const url = \`https://www.youtube.com/watch?v=\${videoId}\`;
-    const info = await ytdl.getInfo(url);
-    
-    // Select video + audio format, preferably mp4
-    const format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'videoandaudio' });
-
-    res.header('Content-Type', 'video/mp4');
-    
-    ytdl(url, { format }).pipe(res);
-  } catch (error) {
-    console.error('YouTube Stream Error:', error);
-    res.status(500).send('Error streaming video');
   }
 };
 
