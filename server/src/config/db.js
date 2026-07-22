@@ -1,8 +1,15 @@
 /**
- * Konfigurasi koneksi MySQL terpusat.
- * Semua nilai diambil dari environment variables (.env),
- * sehingga credential TIDAK pernah masuk ke source code / GitHub.
+ * Konfigurasi koneksi database terpusat.
+ * 
+ * CATATAN MIGRASI VERCEL / NEON:
+ * Proyek ini sekarang menggunakan Prisma ORM dengan PostgreSQL (Neon).
+ * Konfigurasi koneksi MySQL lama di bawah ini dinonaktifkan (dikomen).
  */
+
+/*
+// ==========================================
+// [INACTIVE] KONFIGURASI MYSQL LOKAL
+// ==========================================
 const dbConfig = {
   host:     process.env.DB_HOST     || 'localhost',
   user:     process.env.DB_USER     || 'root',
@@ -17,3 +24,20 @@ const dbConfig = {
 };
 
 module.exports = dbConfig;
+*/
+
+// ==========================================
+// [ACTIVE] PRISMA CLIENT INSTANCE
+// ==========================================
+const { PrismaClient } = require('@prisma/client');
+
+// Prisma 7 memerlukan pendefinisian datasource URL jika url tidak didefinisikan di schema.prisma
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+});
+
+module.exports = prisma;
