@@ -18,6 +18,10 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/kiosk', deviceRoutes.kioskRoutes);
 
 // Base route check
+app.get('/', (req, res) => {
+  res.json({ message: 'Sistem Booking Ruang Rapat Semen Padang API (Root) Active 🚀' });
+});
+
 app.get('/api', (req, res) => {
   res.json({ message: 'Sistem Booking Ruang Rapat Semen Padang API Active (Vercel Serverless) 🚀' });
 });
