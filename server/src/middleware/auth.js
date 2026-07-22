@@ -2,7 +2,7 @@
 // [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
 // =========================================================
 const jwt = require('jsonwebtoken');
-const prisma = require('../config/prisma');
+const prisma = require('../config/db');
 
 const protect = async (req, res, next) => {
   let token;

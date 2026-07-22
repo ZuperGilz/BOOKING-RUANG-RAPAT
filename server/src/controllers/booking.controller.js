@@ -1,7 +1,7 @@
 // =========================================================
 // [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
 // =========================================================
-const prisma = require('../config/prisma');
+const prisma = require('../config/db');
 
 // Fungsi Helper: Mengubah format "HH:mm" menjadi total menit
 const timeToMinutes = (timeStr) => {

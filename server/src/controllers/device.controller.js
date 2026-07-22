@@ -1,7 +1,7 @@
 // =========================================================
 // [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
 // =========================================================
-const prisma = require('../config/prisma');
+const prisma = require('../config/db');
 const bcrypt = require('bcryptjs');
 
 const generateRandomToken = (length = 6) => {

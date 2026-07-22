@@ -1,7 +1,7 @@
 // =========================================================
 // [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
 // =========================================================
-const prisma = require('../config/prisma');
+const prisma = require('../config/db');
 
 const protectDevice = async (req, res, next) => {
   let token = req.headers['x-device-token'];

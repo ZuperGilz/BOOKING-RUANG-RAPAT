@@ -1,7 +1,7 @@
 // =========================================================
 // [ACTIVE] VERSI CLOUD (PRISMA + NEON POSTGRESQL)
 // =========================================================
-const prisma = require('../config/prisma');
+const prisma = require('../config/db');
 const { comparePassword, hashPassword } = require('../utils/password');
 const { generateToken } = require('../utils/jwt');
 
