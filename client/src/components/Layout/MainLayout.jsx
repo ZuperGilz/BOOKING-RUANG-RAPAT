@@ -61,10 +61,7 @@ export default function MainLayout() {
       {/* SIDEBAR (Liquid Glass) */}
       <aside className={`sidebar ${isSidebarOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
-          {/* <img src={logo} alt="Logo" style={{ width: '30px', height: '30px', background: 'white', borderRadius: '6px', padding: '2px' }} /> */}
-          <div style={{ width: '32px', height: '32px', background: 'var(--primary)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(220,38,38,0.4)' }}>
-            <span style={{ fontSize: '1.2rem', color: '#fff', fontWeight: 800 }}>SP</span>
-          </div>
+          <img src={logo} alt="Logo" style={{ width: '30px', height: '30px', background: 'white', borderRadius: '6px', padding: '2px' }} />
           <span style={{ color: 'var(--text-main)' }}>Portal <span style={{ color: 'var(--primary)' }}>Rapat</span></span>
         </div>
         
