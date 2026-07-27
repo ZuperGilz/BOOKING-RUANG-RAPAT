@@ -8,10 +8,8 @@ dotenv.config();
 // ==========================================
 
 // --- [ACTIVE] NEON POSTGRESQL (VERCEL / CLOUD) ---
-const DB_URL = process.env.DATABASE_URL || "postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/booking_rapat?sslmode=require";
+const DB_URL = process.env.DATABASE_URL;
 
-// --- [INACTIVE] MYSQL LOKAL (XAMPP / LOKAL) ---
-// const DB_URL = process.env.DATABASE_URL || "mysql://root:zupergilz@localhost:3306/booking_rapat";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

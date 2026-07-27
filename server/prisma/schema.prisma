@@ -4,8 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 datasource db {
-  // provider = "mysql"  --> pake ini buat local
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 generator client {
