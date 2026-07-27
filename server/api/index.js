@@ -8,22 +8,15 @@ const deviceRoutes = require('../src/routes/device.routes');
 
 const app = express();
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'https://booking-ruang-rapat.vercel.app',
-  'https://event.sp-link.id/',
-  process.env.FRONTEND_URL,
-].filter(Boolean);
+// const allowedOrigins = [
+//   'http://localhost:5173',
+//   'http://localhost:4173',
+//   'https://booking-ruang-rapat.vercel.app',
+//   'https://event.sp-link.id/',
+//   process.env.FRONTEND_URL,
+// ].filter(Boolean);
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS: Origin ${origin} tidak diizinkan`));
-  },
-  credentials: true,
-}));
+app.use(cors());
 app.use(express.json());
 
 // Routes
