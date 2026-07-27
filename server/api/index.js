@@ -12,6 +12,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:4173',
   'https://booking-ruang-rapat.vercel.app',
+  'https://event.sp-link.id/',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
