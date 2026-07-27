@@ -1,10 +1,17 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
-// Semua file upload masuk sementara ke folder temp lokal dulu,
+// Semua file upload masuk sementara ke folder temp dulu,
 // baru dikirim ke FTP Hostinger dari controller, lalu dihapus dari lokal.
-const tempDir = path.join(__dirname, '../../tmp-uploads');
+//
+// PENTING: di Vercel (serverless), filesystem project bersifat read-only
+// saat runtime. Satu-satunya folder yang boleh ditulis adalah os.tmpdir()
+// (biasanya '/tmp'). Folder ini bersifat sementara/ephemeral — bisa hilang
+// kapan saja saat function instance di-recycle — tapi itu sudah cocok
+// dengan alur kita karena file memang langsung dihapus setelah dikirim ke FTP.
+const tempDir = path.join(os.tmpdir(), 'tmp-uploads');
 
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
